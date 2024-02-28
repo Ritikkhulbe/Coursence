@@ -82,7 +82,7 @@ const loginUser = asyncHandler( async(req, res)=> {
     const {username, password, email} = req.body;
 
     //validate username || email
-    if(!username || !email) throw new apiError(400, "username or email is required");
+    if(!(username || email)) throw new apiError(400, "username or email is required");
 
     //find user
     const user = await User.findOne({$or: [{username}, {email}]});
@@ -116,9 +116,12 @@ const loginUser = asyncHandler( async(req, res)=> {
 })
 
 const LogoutUser = asyncHandler( async(req, res) => {
+
+    //find user in db
     await User.findByIdAndUpdate(
         req.user._id,
         {
+            //removeCookie from db
             $set: {
                 refreshToken: undefined
             }
@@ -127,12 +130,17 @@ const LogoutUser = asyncHandler( async(req, res) => {
         }
     )
     //clear cookies
-    
-    //find user in db
-
-    //removeCookie from db
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
 
     //return res
+    return res.status(200).clearCookie("accessToken", options).clearCookie("refreshToken", options)
+    .json(new apiResponse(200, {}, "User logged out"));
+    
+
+
 })
 
 
