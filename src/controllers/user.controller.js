@@ -3,6 +3,7 @@ import apiError from "../utils/apiError.js";
 import apiResponse from "../utils/apiResponse.js";
 import { User } from "../models/user.model.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import jwt from "jsonwebtoken";
 
 const generateAccessAndRefreshToken = async (userId) => {
     try {
@@ -41,7 +42,7 @@ const registerUser = asyncHandler( async(req, res) => {
     //check avatar
     const avatarLocalPath = req.files?.avatar[0]?.path;
     
-    let coverImageLocalPath;
+    let coverImageLocalPath = "";
     if(Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0)
         coverImageLocalPath = req.files?.coverImage[0]?.path;
 
@@ -143,5 +144,38 @@ const LogoutUser = asyncHandler( async(req, res) => {
 
 })
 
+const refreshAccessToken = asyncHandler( async(req, res) => {
 
-export {registerUser, loginUser, LogoutUser};
+    try {
+        
+        const token = req.cookies?.refreshToken || req.header("Authorization")?.replace("Bearer ", "");
+        
+        if(!token) throw new apiError(401, "Unauthorized request");
+    
+        const decode = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
+
+        const user = await User.findById(decode?._id);
+
+        if(!user) throw new apiError(401, "Invalid refresh token");
+
+        if(token !== user?.refreshToken) throw new apiError(401, "Refresh token is expired or used");
+
+        const {accessToken, refreshToken} = await generateAccessAndRefreshToken(user._id);
+    
+        const options = {
+            httpOnly: true,
+            secure: true
+        }
+    
+        //return res
+        return res.status(200).cookie("accessToken", accessToken, options).cookie("refreshToken", refreshToken, options)
+        .json(
+            new apiResponse(200, { accessToken, refreshToken}, "Access Token Refreshed")
+        );
+    } catch (error) {
+        throw new apiError(401, error?.message || "Invalid Refresh Token");
+    }
+})
+
+
+export {registerUser, loginUser, LogoutUser, refreshAccessToken};
